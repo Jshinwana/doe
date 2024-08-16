@@ -4,29 +4,71 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
-steps:
-- task: Bash@3
-  displayName: 'Run a script'
-  inputs:
-    command: 'echo Hello World'
+stages:
+- stage: build
+  displayName: 'Build'
+  jobs:
+  - job: build
+    steps:
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet Packages'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
 
-- task: Notify@1
-  displayName: 'Send notifications'
-  inputs:
-    notificationType: 'email'
-    emailRecipients: 'user1@example.com,user2@example.com'
-    emailSubject: 'Pipeline notification'
-    emailBody: 'The pipeline has completed with $(Agent.JobStatus)'
+    - task: DotNetCoreCLI@2
+      displayName: 'Build'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        configuration: '$(buildConfiguration)'
 
-notifications:
-  pipelines:
-    - pipeline: '*'
-      notifications:
-        - notification: 'email'
-          recipients:
-            - 'user1@example.com'
-            - 'user2@example.com'
-          events:
-            - pipelineFailure
-            - pipelineSuccess
-            - pipelineCancellation
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish'
+      inputs:
+        command: 'publish'
+        projects: '**/*.csproj'
+        configuration: '$(buildConfiguration)'
+        publishWebProjects: '**/*.csproj'
+        TargetProfile: 'FolderProfile'
+
+    - task: PublishBuildArtifact@2
+      displayName: 'Publish Artifact'
+      inputs:
+        artifactName: '$(artifactName)'
+        path: '$(System.ArtifactsDirectory)/**/*.zip'
+
+- stage: test
+  displayName: 'Test'
+  jobs:
+  - job: test
+    steps:
+    - task: DotNetCoreCLI@2
+      displayName: 'Run Unit Tests'
+      inputs:
+        command: 'test'
+        projects: '**/*.csproj'
+        configuration: '$(buildConfiguration)'
+
+    - task: CodeCoverage@1
+      displayName: 'Code Coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '**/coverage.cobertura.xml'
+
+- stage: deploy
+  displayName: 'Deploy'
+  jobs:
+  - job: deploy
+    steps:
+    - task: AzureAppServiceDeployment@2
+      displayName: 'Deploy to Staging'
+      inputs:
+        azureSubscription: 'my-azure-subscription'
+        appServiceName: 'my-app-service'
+        package: '$(System.ArtifactsDirectory)/**/*.zip'
+        environmentName: 'staging'
+
+variables:
+  buildConfiguration: 'Release'
+  artifactName: 'myapp'
