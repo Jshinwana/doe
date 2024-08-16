@@ -5,58 +5,23 @@ pool:
   vmImage: 'ubuntu-latest'
 
 stages:
-- stage: build
+- build
+- deploy
+
+build:
+  stage: build
   displayName: 'Build'
   jobs:
   - job: build
     steps:
     - task: DotNetCoreCLI@2
-      displayName: 'Restore NuGet Packages'
-      inputs:
-        command: 'restore'
-        projects: '**/*.csproj'
-
-    - task: DotNetCoreCLI@2
       displayName: 'Build'
       inputs:
         command: 'build'
         projects: '**/*.csproj'
-        configuration: '$(buildConfiguration)'
 
-    - task: DotNetCoreCLI@2
-      displayName: 'Publish'
-      inputs:
-        command: 'publish'
-        projects: '**/*.csproj'
-        configuration: '$(buildConfiguration)'
-        publishWebProjects: '**/*.csproj'
-        TargetProfile: 'FolderProfile'
-
-    - task: PublishBuildArtifact@2
-      displayName: 'Publish Artifact'
-      inputs:
-        artifactName: '$(artifactName)'
-        path: '$(System.ArtifactsDirectory)/**/*.zip'
-
-- stage: test
-  displayName: 'Test'
-  jobs:
-  - job: test
-    steps:
-    - task: DotNetCoreCLI@2
-      displayName: 'Run Unit Tests'
-      inputs:
-        command: 'test'
-        projects: '**/*.csproj'
-        configuration: '$(buildConfiguration)'
-
-    - task: CodeCoverage@1
-      displayName: 'Code Coverage'
-      inputs:
-        codeCoverageTool: 'Cobertura'
-        summaryFileLocation: '**/coverage.cobertura.xml'
-
-- stage: deploy
+deploy:
+  stage: deploy
   displayName: 'Deploy'
   jobs:
   - job: deploy
@@ -68,7 +33,3 @@ stages:
         appServiceName: 'my-app-service'
         package: '$(System.ArtifactsDirectory)/**/*.zip'
         environmentName: 'staging'
-
-variables:
-  buildConfiguration: 'Release'
-  artifactName: 'myapp'
