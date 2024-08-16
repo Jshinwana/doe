@@ -5,26 +5,61 @@ pool:
   vmImage: 'ubuntu-latest'
 
 stages:
-- build
-- deploy
-
-build:
-  stage: build
+- stage: build_stage
   displayName: 'Build'
   jobs:
-  - job: build
+  - job: build_job
     steps:
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet Packages'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+
     - task: DotNetCoreCLI@2
       displayName: 'Build'
       inputs:
         command: 'build'
         projects: '**/*.csproj'
+        configuration: '$(buildConfiguration)'
 
-deploy:
-  stage: deploy
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish'
+      inputs:
+        command: 'publish'
+        projects: '**/*.csproj'
+        configuration: '$(buildConfiguration)'
+        publishWebProjects: '**/*.csproj'
+        TargetProfile: 'FolderProfile'
+
+    - task: PublishBuildArtifact@2
+      displayName: 'Publish Artifact'
+      inputs:
+        artifactName: '$(artifactName)'
+        path: '$(System.ArtifactsDirectory)/**/*.zip'
+
+- stage: test_stage
+  displayName: 'Test'
+  jobs:
+  - job: test_job
+    steps:
+    - task: DotNetCoreCLI@2
+      displayName: 'Run Unit Tests'
+      inputs:
+        command: 'test'
+        projects: '**/*.csproj'
+        configuration: '$(buildConfiguration)'
+
+    - task: CodeCoverage@1
+      displayName: 'Code Coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '**/coverage.cobertura.xml'
+
+- stage: deploy_stage
   displayName: 'Deploy'
   jobs:
-  - job: deploy
+  - job: deploy_job
     steps:
     - task: AzureAppServiceDeployment@2
       displayName: 'Deploy to Staging'
@@ -33,3 +68,7 @@ deploy:
         appServiceName: 'my-app-service'
         package: '$(System.ArtifactsDirectory)/**/*.zip'
         environmentName: 'staging'
+
+variables:
+  buildConfiguration: 'Release'
+  artifactName: 'myapp'
